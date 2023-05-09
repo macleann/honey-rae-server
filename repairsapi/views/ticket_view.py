@@ -36,9 +36,16 @@ class TicketView(ViewSet):
         if request.auth.user.is_staff:
             tickets = ServiceTicket.objects.all()
 
-            if "status" in request.query_params:
+            if 'status' in request.query_params:
                 if request.query_params['status'] == 'done':
                     tickets = tickets.filter(date_completed__isnull=False)
+                elif request.query_params['status'] == 'unclaimed':
+                    tickets = tickets.filter(employee__isnull=True, date_completed__isnull=True)
+                elif request.query_params['status'] == 'inprogress':
+                    tickets = tickets.filter(date_completed__isnull=True, employee__isnull=False)
+            elif 'q' in request.query_params:
+                tickets = tickets.filter(description__icontains=request.query_params['q'])
+                
         else:
             tickets = ServiceTicket.objects.filter(customer__user=request.auth.user)
         serialized = TicketSerializer(tickets, many=True)
@@ -66,13 +73,19 @@ class TicketView(ViewSet):
         ticket = ServiceTicket.objects.get(pk=pk)
 
         # Get the employee id from the client request
-        employee_id = request.data['employee']
+        employee_id = request.data["employee"]
+        customer_id = request.data["customer"]
 
         # Select the employee from the database using that id
         assigned_employee = Employee.objects.get(pk=employee_id)
+        customer = Customer.objects.get(pk=customer_id)
 
         # Assign that Employee instance to the employee property of the ticket
         ticket.employee = assigned_employee
+        ticket.customer = customer
+        ticket.description = request.data["description"]
+        ticket.emergency = request.data["emergency"]
+        ticket.date_completed = request.data["date_completed"]
 
         # Save the updated ticket
         ticket.save()
